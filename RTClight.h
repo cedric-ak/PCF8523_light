@@ -1,7 +1,7 @@
 /*
   LED.h - Library for using the PCF8523 Real time clock.
   October 13, 2020.
-  v1.0
+  v1.2
 */
 
 #ifndef RTCLIGHT_H
@@ -45,14 +45,21 @@
 #define SECONDS_FROM_1970_TO_2020 1577836800 ///< Unixtime for 2020-01-01 00:00:00, useful for initialization
 
  /*PCF8523 interrupt flags */
-/* #define WTAF				  0x04  
-#define CTAF				  0x02
-#define CTBF			      0x00 */
+#define WTAF				  0x7F 
+#define CTAF				  0x3F 
+#define CTBF			      0x5F 
+#define AF                    0x77
+
+#define TIMER_A_INTERRUPT			(rtc.read(CONTROL_2) & (0x40))
+#define TIMER_B_INTERRUPT			(rtc.read(CONTROL_2) & (0x20))
+#define ALARM_INTERRUPT			    (rtc.read(CONTROL_2) & (0x08))
+
+
 
 enum days { Sun = 0, Mon = 1, Tue = 2, Wed = 3, Thu = 4, Fri = 5, Sat = 6};
 enum months {Jan =1, Feb =2, Mar =3, Apr =4, May =5, Jun =6, Jul =7, Aug =8, Sep =9, Oct =10, Nov =11, Dec =12};
 enum TMR_SCLK_FREQ {hours = 7, minutes = 3, seconds = 2}; //count down time unit source clock frequency
-enum interrupt_Flag {WTAF = 4, CTAF = 2, CTBF = 0};       //watchdog timer, count down timer A, count down timer B
+//enum interrupt_Flag {WTAF = 4, CTAF = 2, CTBF = 0};       //watchdog timer, count down timer A, count down timer B
 
 class RTC_PCF8523
 {
@@ -60,10 +67,15 @@ public:
 	bool begin(void);
 	void setTime(uint8_t hour, uint8_t minute, uint8_t second);
 	void setDate(uint8_t day, uint8_t weekday, uint8_t month, uint8_t year);
-	void countDown_Enable(uint8_t timeUnit, uint8_t time);
-	void setAlarm(uint8_t alarmReg, uint8_t minute, uint8_t hour, uint8_t day, uint8_t weekDay);
+	void countDown_Enable_TMRA(uint8_t timeUnit, uint8_t time);
+	void countDown_Enable_TMRB(uint8_t timeUnit, uint8_t time);
+	void wkDayAlarm(uint8_t weekDay);
+	void dayAlarm(uint8_t day, uint8_t hour, uint8_t minute);
+	void timeAlarm(uint8_t hour, uint8_t minute);
 	void PCF8523_write(uint8_t regAdd, uint8_t data);
-	int PCF8523_rtc_INTF_CLR(int interruptFlag);
+	int  INTF_CLR(int interruptFlag);
+	void CLR_ALL_INTF(void);
+	void softReset(void);
 	uint8_t decimalToBCD(int DecValue);
 	uint8_t BCDtoDecimal(int BCDvalue);
 	uint8_t read(uint8_t address);

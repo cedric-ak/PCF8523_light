@@ -1,7 +1,7 @@
 /**************************************************************************
   LED.h - Library for using the PCF8523 Real time clock.
   October 13, 2020.
-  v1.0
+  v1.2
   Company: Techsitter
   Written by : CEDRIC
 **************************************************************************/
@@ -52,8 +52,9 @@ bool RTC_PCF8523::begin(void) {
      * second and Alarm interrupt disabled
      * no correction interrupt generated
      */
-	 
-	uint8_t ack;
+	softReset();    //reset device before config
+
+ 	uint8_t ack;
 	Wire.begin();
     PCF8523_write(CONTROL_1, 0x80);
 
@@ -62,6 +63,9 @@ bool RTC_PCF8523::begin(void) {
      * battery low detection function is enabled
      * clear all power management interrupt flags
      */
+
+    PCF8523_write(CONTROL_2, 0x00);  //clear all interrupts flag 
+
     PCF8523_write(CONTROL_3, 0x80);
 
     /*Clockout register
@@ -89,11 +93,11 @@ void RTC_PCF8523::setTime(uint8_t hour, uint8_t minute, uint8_t second) {
     int Register[4] = {SECONDS, MINUTES, HOURS};
     for (int timeReg = 0; timeReg < 3; timeReg++) {
         if (Register[timeReg] == SECONDS)
-            PCF8523_write(Register[timeReg], decimalToBCD(second)&0x7F);
+            PCF8523_write(Register[timeReg], decimalToBCD(second) & 0x7F);
         else if (Register[timeReg] == MINUTES)
-            PCF8523_write(Register[timeReg], decimalToBCD(minute)&0x7F);
+            PCF8523_write(Register[timeReg], decimalToBCD(minute) & 0x7F);
         else if (Register[timeReg] == HOURS)
-            PCF8523_write(Register[timeReg], decimalToBCD(hour)&0x7F);
+            PCF8523_write(Register[timeReg], decimalToBCD(hour) & 0x7F);
     }
 }
 
@@ -109,16 +113,44 @@ void RTC_PCF8523::setDate(uint8_t day, uint8_t weekday, uint8_t month, uint8_t y
     uint8_t Register[5] = {DAYS, WEEKDAYS, MONTHS, YEARS};
     for (int timeReg = 0; timeReg < 4; timeReg++) {
         switch (Register[timeReg]) {
-            case DAYS:PCF8523_write(Register[timeReg], decimalToBCD(day)&0x7F);
+            case DAYS:PCF8523_write(Register[timeReg], decimalToBCD(day) & 0x7F);
                 break;
-            case WEEKDAYS:PCF8523_write(Register[timeReg], decimalToBCD(weekday)&0x7F);
+            case WEEKDAYS:PCF8523_write(Register[timeReg], decimalToBCD(weekday) & 0x7F);
                 break;
-            case MONTHS:PCF8523_write(Register[timeReg], decimalToBCD(month)&0x7F);
+            case MONTHS:PCF8523_write(Register[timeReg], decimalToBCD(month) & 0x7F);
                 break;
-            case YEARS:PCF8523_write(Register[timeReg], decimalToBCD(year)&0x7F);
+            case YEARS:PCF8523_write(Register[timeReg], decimalToBCD(year) & 0x7F);
                 break;
-        }
+        }     
     }
+}
+
+/**********************************************************
+**Name:     timeAlarm
+**Function: RTC Initialize alarm in hour/minutes or seconds
+**Input:    hour and minute
+**Output:   none
+**note:    
+**********************************************************/
+void RTC_PCF8523::timeAlarm(uint8_t hour, uint8_t minute) {
+    PCF8523_write(CONTROL_1, read(CONTROL_1)| 0x02);                     // Alarm interrupt enabled
+    PCF8523_write(HOUR_ALARM, 0x00);
+    PCF8523_write(MINUTE_ALARM, 0x00);              //enable minute alarm
+    PCF8523_write(HOUR_ALARM, decimalToBCD(hour));
+    PCF8523_write(MINUTE_ALARM, decimalToBCD(minute));                                    
+}
+
+/**********************************************************
+**Name:     dayAlarm
+**Function: RTC Initialize alarm in hour/minutes or seconds
+**Input:    day of month, hour and min
+**Output:   none
+**********************************************************/
+void RTC_PCF8523::dayAlarm(uint8_t day, uint8_t hour, uint8_t minute) {
+    PCF8523_write(CONTROL_1, read(CONTROL_1)| 0x02);     // Alarm interrupt enabled
+    PCF8523_write(DAY_ALARM, 0x00);                      //enable day alarm
+    PCF8523_write(DAY_ALARM, decimalToBCD(day));  
+    timeAlarm(hour, minute);                             //enable time alarm                                                
 }
 
 /**********************************************************
@@ -128,10 +160,10 @@ void RTC_PCF8523::setDate(uint8_t day, uint8_t weekday, uint8_t month, uint8_t y
 **Output:   none
 **note:     One alarm can be used at the time, not used alarm set value to 0 in software, eg: setAlarm(MINUTE_ALARM, 15, 0 ,0 ,0);
 **********************************************************/
-void RTC_PCF8523::setAlarm(uint8_t alarmReg, uint8_t minute, uint8_t hour, uint8_t day, uint8_t weekDay) {
-    PCF8523_write(CONTROL_1, 0x80 | 0x02);                               // Alarm interrupt enabled
-    PCF8523_write(alarmReg, decimalToBCD(minute + hour + weekDay)&0x7F); //only one alarm can be enabled at the time. set unused alarm value to zero
-    PCF8523_write(CONTROL_2, 0x00);                                      //clear all alarm interrupt flag (this function disable WTAIE, CTAIE, CTBIE), 
+void RTC_PCF8523::wkDayAlarm(uint8_t weekDay) {
+    PCF8523_write(CONTROL_1, read(CONTROL_1)| 0x02);                     // Alarm interrupt enabled
+    PCF8523_write(WEEKDAY_ALARM, 0x00);                    //enable week day alarm
+    PCF8523_write(WEEKDAY_ALARM, decimalToBCD(weekDay));                                                    
 }
 
 /**********************************************************
@@ -142,12 +174,28 @@ void RTC_PCF8523::setAlarm(uint8_t alarmReg, uint8_t minute, uint8_t hour, uint8
 **note:     time variable maximum 255, e.g:PCF8523_countDown_Enable(hours, 2); 
             interrupt generated every 2 hours. interrupt flag must be cleared in software 
 **********************************************************/
-void RTC_PCF8523::countDown_Enable(uint8_t timeUnit, uint8_t time) {
-    PCF8523_write(TMR_CLKOUT_CTRL, 0xFA); //enable timer A pulse interrupt
-    PCF8523_write(CONTROL_2, 0x02);       //countdown timer A interrupt is enabled
+void RTC_PCF8523::countDown_Enable_TMRA(uint8_t timeUnit, uint8_t time) {
+    PCF8523_write(TMR_CLKOUT_CTRL,read(TMR_CLKOUT_CTRL)|0x02); //enable timer A pulse interrupt
+    PCF8523_write(CONTROL_2, read(CONTROL_2) |0x02);       //countdown timer A interrupt is enabled
     PCF8523_write(TMR_A_FREQ_CTRL, timeUnit);
     PCF8523_write(TMR_A_REG, time);       //max 255 in decimal
 }
+
+/**********************************************************
+**Name:     countDown_Enable
+**Function: RTC Initialize count down of timer B
+**Input:    time unit(hours, minutes, seconds), time in decimal format
+**Output:   none
+**note:     time variable maximum 255, e.g:PCF8523_countDown_Enable(hours, 2); 
+            interrupt generated every 2 hours. interrupt flag must be cleared in software 
+**********************************************************/
+void RTC_PCF8523::countDown_Enable_TMRB(uint8_t timeUnit, uint8_t time) {
+    PCF8523_write(TMR_CLKOUT_CTRL, read(TMR_CLKOUT_CTRL)|0x01); //enable timer B pulse interrupt
+    PCF8523_write(CONTROL_2,  read(CONTROL_2) |0x01);       //countdown timer B interrupt is enabled
+    PCF8523_write(TMR_B_FREQ_CTRL, timeUnit);
+    PCF8523_write(TMR_B_REG, time);       //max 255 in decimal
+}
+
 
 /**********************************************************
 **Name:     PCF8523_read
@@ -161,25 +209,41 @@ uint8_t RTC_PCF8523::read(uint8_t address) {
 uint8_t dataRead ;  
 	Wire.beginTransmission(SLAVE_ADDRESS);
 	Wire.write(address);
-	Wire.endTransmission();     // stop transmitting
+	Wire.endTransmission();      // stop transmitting
 	Wire.requestFrom(SLAVE_ADDRESS,1);
-	while (Wire.available()) { // slave may send less than requested
-    dataRead = Wire.read(); // receive a byte as character
+	while (Wire.available()) {  // slave may send less than requested
+    dataRead = Wire.read();   // receive a byte as character
    }
-   return BCDtoDecimal(dataRead);
+   if(address > 0x02 && address < 0x0A)   //if we reading time or date convert from BCD to Dec, if not return register value as is.
+      return BCDtoDecimal(dataRead);
+ else 
+  return dataRead;
 }
 
 /**********************************************************
-**Name:     PCF8523_rtc_INTF_CLR
+**Name:     INTF_CLR
 **Function: RTC interrupt flags clear
 **Input:    watchdog timer INT flag (WTAF), count down timer A INT flag (CTAF), count down timer B INT flag(CTBF) 
 **Output:   
 **note:     watchdog timer and count down timer B interrupt not configured in this library
 **********************************************************/
-int RTC_PCF8523::PCF8523_rtc_INTF_CLR(int interruptFlag) {    
-    PCF8523_write(CONTROL_2, interruptFlag); 
-    delay(2);
-    return;
+int RTC_PCF8523::INTF_CLR(int interruptFlag) {    
+    PCF8523_write(CONTROL_2, (read(CONTROL_2)) & interruptFlag); 
+    delay(5);
+    //return;
+}
+
+/**********************************************************
+**Name:     CLR_ALL_INTF
+**Function: RTC interrupt flags clear
+**Input:    watchdog timer INT flag (WTAF), count down timer A INT flag (CTAF), count down timer B INT flag(CTBF) 
+**Output:   
+**note:     watchdog timer and count down timer B interrupt not configured in this library
+**********************************************************/
+void RTC_PCF8523::CLR_ALL_INTF(void) {    
+    INTF_CLR(CTAF);   //clear interrupt timer A countdown
+    INTF_CLR(CTBF);   //clear interrupt timer B countdown
+    INTF_CLR(AF);     //clear alarm interrupt flag
 }
 
 /**********************************************************
@@ -302,7 +366,9 @@ uint32_t RTC_PCF8523::unixtime(void) const {
 }
 
 /**************************************************************************/
-/*! @param y year
+
+/*!@brief  Given a number of year, month, day,, hour, minute and second, return the total seconds from Jan 1 2020
+   @param y year
     @param m Month
     @param d Day
     @param hh Hours
@@ -319,4 +385,9 @@ uint32_t RTC_PCF8523::unixtimeCalc(uint8_t y, uint8_t m, uint8_t d, uint8_t hh, 
   epoch = time2long(days,hh,mm,ss); 
   epoch += SECONDS_FROM_1970_TO_2000;  // + seconds from 1970 to 2000     
   return epochMin = (epoch - SECONDS_FROM_1970_TO_2020);  
+}
+
+void RTC_PCF8523::softReset(void){
+  PCF8523_write(CONTROL_1, 0x58); 
+  delay(5);
 }
