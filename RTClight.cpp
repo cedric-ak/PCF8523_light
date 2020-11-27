@@ -206,7 +206,7 @@ void RTC_PCF8523::countDown_Enable_TMRB(uint8_t timeUnit, uint8_t time) {
             e.g: PCF8523_read(HOURS);  returns current hour in decimal
 **********************************************************/
 uint8_t RTC_PCF8523::read(uint8_t address) {    
-uint8_t dataRead ;  
+  uint8_t dataRead ;  
 	Wire.beginTransmission(SLAVE_ADDRESS);
 	Wire.write(address);
 	Wire.endTransmission();      // stop transmitting
@@ -225,7 +225,7 @@ uint8_t dataRead ;
 **Function: RTC interrupt flags clear
 **Input:    watchdog timer INT flag (WTAF), count down timer A INT flag (CTAF), count down timer B INT flag(CTBF) 
 **Output:   
-**note:     watchdog timer and count down timer B interrupt not configured in this library
+**note:     
 **********************************************************/
 int RTC_PCF8523::INTF_CLR(int interruptFlag) {    
     PCF8523_write(CONTROL_2, (read(CONTROL_2)) & interruptFlag); 
@@ -238,7 +238,7 @@ int RTC_PCF8523::INTF_CLR(int interruptFlag) {
 **Function: RTC interrupt flags clear
 **Input:    watchdog timer INT flag (WTAF), count down timer A INT flag (CTAF), count down timer B INT flag(CTBF) 
 **Output:   
-**note:     watchdog timer and count down timer B interrupt not configured in this library
+**note:    
 **********************************************************/
 void RTC_PCF8523::CLR_ALL_INTF(void) {    
     INTF_CLR(CTAF);   //clear interrupt timer A countdown
